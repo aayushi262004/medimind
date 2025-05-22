@@ -7,30 +7,6 @@ const HospitalOperationsPage: FC = () => {
 
   return (
     <MainLayout>
-      {/* Hero Section */}
-      <section
-        className="relative bg-cover bg-center p-10 rounded-xl shadow-md"
-        style={{
-          backgroundImage: `url('/your-background.jpg')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
-        <div className="bg-white bg-opacity-80 p-6 rounded-md text-center">
-          <h2 className="text-3xl font-bold">
-            <span className="text-blue-700">Medi</span>
-            <span className="text-green-500">Mind AI</span>
-          </h2>
-          <p className="mt-4 text-gray-700 font-semibold">
-            Patient Record Management System
-          </p>
-          <p className="mt-2 text-sm text-gray-500">
-            Efficiently manage patient records and gain valuable insights through
-            advanced data visualization.
-          </p>
-        </div>
-      </section>
-
       {/* Two Column Layout */}
       <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Patient Records Column */}
