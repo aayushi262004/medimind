@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+diagnostics_backend/node_modules
+diagnostics_backend/venv

@@ -1,4 +1,4 @@
-import { FC, useState, useRef } from 'react';
+import { FC, useState, useEffect, useRef } from 'react';
 import MainLayout from '../components/layout/MainLayout';
 
 interface DiagnosticResult {
@@ -17,12 +17,26 @@ const DiagnosticsPage: FC = () => {
   const [symptomInput, setSymptomInput] = useState('');
   const [symptoms, setSymptoms] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [history, setHistory] = useState<DiagnosticResult[]>([]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('diagnosticHistory');
+    if (saved) {
+      setHistory(JSON.parse(saved));
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('diagnosticHistory', JSON.stringify(history));
+  }, [history]);
+
 
   const commonSymptoms = [
     'Headache', 'Fever', 'Cough', 'Fatigue',
     'Shortness of breath', 'Chest pain', 'Nausea',
     'Dizziness', 'Back pain', 'Joint pain'
   ];
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -71,7 +85,17 @@ const DiagnosticsPage: FC = () => {
     }
   };
 
-  const analyzeDiagnostics = () => {
+  const saveToHistory = () => {
+    if (results) {
+      setHistory((prev) => [...prev, results]);
+      alert("Result saved to history.");
+    } else {
+      alert("No result to save.");
+    }
+  };
+
+
+  const analyzeDiagnostics = async () => {
     if (files.length === 0 && symptoms.length === 0) {
       alert('Please upload at least one medical report or add symptoms');
       return;
@@ -80,30 +104,34 @@ const DiagnosticsPage: FC = () => {
     setIsAnalyzing(true);
     setActiveTab('results');
 
-    // Simulating analysis delay
-    setTimeout(() => {
-      // Mock result - in a real application, this would come from your AI backend
-      const mockResult: DiagnosticResult = {
-        severity: 'attention',
-        findings: [
-          'Elevated blood pressure (145/90 mmHg)',
-          'Slightly elevated glucose levels (110 mg/dL)',
-          'Normal cholesterol levels',
-          'Reported symptoms suggest possible stress-related hypertension'
-        ],
-        recommendations: [
-          'Schedule a follow-up with your primary care physician within 2 weeks',
-          'Monitor blood pressure daily if possible',
-          'Reduce sodium intake and consider DASH diet',
-          'Regular moderate exercise (30 minutes, 5 days a week)',
-          'Practice stress reduction techniques like meditation or deep breathing'
-        ],
-        followUp: '2 weeks'
-      };
+    const formData = new FormData();
+    files.forEach((file) => formData.append('files', file));
+    formData.append('symptoms', JSON.stringify(symptoms));
 
-      setResults(mockResult);
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/diagnose', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to analyze diagnostics");
+      }
+
+      const data = await response.json();
+
+      setResults(data);
+      setHistory((prev) => {
+        const updated = [...prev, data];
+        localStorage.setItem('diagnosticHistory', JSON.stringify(updated));
+        return updated;
+      });
+    } catch (error) {
+      alert("Something went wrong while analyzing.");
+      console.error("Analysis error:", error);
+    } finally {
       setIsAnalyzing(false);
-    }, 3000);
+    }
   };
 
   const renderUploadTab = () => (
@@ -272,13 +300,13 @@ const DiagnosticsPage: FC = () => {
         <div>
           {/* Summary Card */}
           <div className={`p-4 rounded-lg mb-6 border-l-4 ${results.severity === 'normal' ? 'bg-green-50 border-green-500' :
-              results.severity === 'attention' ? 'bg-yellow-50 border-yellow-500' :
-                'bg-red-50 border-red-500'
+            results.severity === 'attention' ? 'bg-yellow-50 border-yellow-500' :
+              'bg-red-50 border-red-500'
             }`}>
             <div className="flex items-start">
               <div className={`p-2 rounded-full mr-3 ${results.severity === 'normal' ? 'bg-green-100 text-green-700' :
-                  results.severity === 'attention' ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-red-100 text-red-700'
+                results.severity === 'attention' ? 'bg-yellow-100 text-yellow-700' :
+                  'bg-red-100 text-red-700'
                 }`}>
                 {results.severity === 'normal' ? '✓' :
                   results.severity === 'attention' ? '!' : '!!'}
@@ -333,9 +361,13 @@ const DiagnosticsPage: FC = () => {
 
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-4">
-            <button className="flex items-center bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">
-              <span className="mr-2">💾</span> Save Results
-            </button>
+            <div className="flex flex-wrap gap-4">
+              <button
+                onClick={saveToHistory}
+                className="flex items-center bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">
+                <span className="mr-2">💾</span> Save Results
+              </button>
+            </div>
             <button className="flex items-center bg-white border border-blue-600 text-blue-600 py-2 px-4 rounded hover:bg-blue-50">
               <span className="mr-2">🖨️</span> Print Report
             </button>
@@ -354,15 +386,28 @@ const DiagnosticsPage: FC = () => {
 
   const renderHistoryTab = () => (
     <div className="p-6">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Diagnostic History</h2>
-
-      <div className="bg-white border rounded-lg p-4 mb-6">
-        <p className="text-center text-gray-500 py-8">
-          Your previous diagnostic results will appear here.
-        </p>
-      </div>
-
-      <div className="text-center">
+      <h2 className="text-2xl font-bold text-gray-800 mb-4">Saved Diagnostic History</h2>
+      {history.length === 0 ? (
+        <p className="text-gray-600">No saved results yet.</p>
+      ) : (
+        <ul className="space-y-4">
+          {history.map((item, idx) => (
+            <li key={idx} className="bg-white p-4 rounded border">
+              <p><strong>Severity:</strong> {item.severity}</p>
+              <p className="mt-2 text-sm font-semibold">Findings:</p>
+              <ul className="list-disc ml-6">
+                {item.findings.map((f, i) => <li key={i}>{f}</li>)}
+              </ul>
+              <p className="mt-2 text-sm font-semibold">Recommendations:</p>
+              <ul className="list-disc ml-6">
+                {item.recommendations.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+              {item.followUp && <p className="mt-2"><strong>Follow-up:</strong> {item.followUp}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="text-center mt-6">
         <button
           onClick={() => setActiveTab('upload')}
           className="bg-blue-600 text-white py-2 px-6 rounded hover:bg-blue-700"
@@ -390,8 +435,8 @@ const DiagnosticsPage: FC = () => {
         <div className="flex border-b">
           <button
             className={`flex-1 py-3 px-4 text-center ${activeTab === 'upload'
-                ? 'border-b-2 border-blue-600 text-blue-600 font-medium'
-                : 'text-gray-600 hover:text-blue-500'
+              ? 'border-b-2 border-blue-600 text-blue-600 font-medium'
+              : 'text-gray-600 hover:text-blue-500'
               }`}
             onClick={() => setActiveTab('upload')}
           >
@@ -399,8 +444,8 @@ const DiagnosticsPage: FC = () => {
           </button>
           <button
             className={`flex-1 py-3 px-4 text-center ${activeTab === 'results'
-                ? 'border-b-2 border-blue-600 text-blue-600 font-medium'
-                : 'text-gray-600 hover:text-blue-500'
+              ? 'border-b-2 border-blue-600 text-blue-600 font-medium'
+              : 'text-gray-600 hover:text-blue-500'
               }`}
             onClick={() => setActiveTab('results')}
           >
@@ -408,8 +453,8 @@ const DiagnosticsPage: FC = () => {
           </button>
           <button
             className={`flex-1 py-3 px-4 text-center ${activeTab === 'history'
-                ? 'border-b-2 border-blue-600 text-blue-600 font-medium'
-                : 'text-gray-600 hover:text-blue-500'
+              ? 'border-b-2 border-blue-600 text-blue-600 font-medium'
+              : 'text-gray-600 hover:text-blue-500'
               }`}
             onClick={() => setActiveTab('history')}
           >
